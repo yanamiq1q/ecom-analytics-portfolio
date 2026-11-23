@@ -29,7 +29,6 @@ The emphasis is on what matters in production analytics: correct grain, surrogat
 - A 3-layer dbt project: staging, intermediate, marts (22 models, 79 tests, 9 sources).
 - A Kimball star schema: 3 dimensions and 2 fact tables at different grains, joined on surrogate keys with `relationships` tests enforcing referential integrity.
 - Generic tests (`unique`, `not_null`, `accepted_values`, `relationships`, `dbt_utils` composite and range tests) plus a singular data-quality test run at WARN severity.
-- Five analyses that go beyond description: a confounder-controlled delivery study, customer RFM segmentation with window functions, and seller and category revenue-concentration work.
 - A four-page Power BI dashboard built on the marts (Overview, Delivery Performance, Customer Satisfaction, Customer Intelligence) that presents the findings for a business audience.
 - Deliberate scoping: documented decisions about what was *not* built, and why.
 
