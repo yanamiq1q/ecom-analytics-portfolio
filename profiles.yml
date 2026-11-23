@@ -1,4 +1,4 @@
-ecommerce_analytics:
+ecom_analytics_portfolio:
   target: dev
   outputs:
     dev:

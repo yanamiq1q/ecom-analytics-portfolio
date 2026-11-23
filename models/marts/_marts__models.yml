@@ -292,3 +292,56 @@ models:
                 values: [1, 2, 3, 4, 5]
       - name: item_count
         description: "Number of order line items in this category at this review score."
+  - name: delivery_risk
+    description: "Delivery-risk mart, one row per purchase month x customer state x distance band (delivered orders with a carrier handover and a delivery estimate only). Separates the seller-side lever (overdue_orders: handed to the carrier after the seller's own shipping deadline) from the transit-side remainder, so the dashboard and the overdue_shipment analysis read the same numbers. distance_band = '5 unknown' where a zip centroid is missing."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - order_month
+              - customer_state
+              - distance_band
+    columns:
+      - name: order_month
+        description: "Purchase month, first day of the month."
+        data_tests:
+          - not_null
+      - name: customer_state
+        description: "Two-letter Brazilian state code of the customer."
+        data_tests:
+          - not_null
+      - name: distance_band
+        description: "Customer-to-seller haversine distance bucket: '1 <100km', '2 100-500km', '3 500-1000km', '4 1000km+', or '5 unknown' where the zip centroid is missing. String labels so they sort and filter in order."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['1 <100km', '2 100-500km', '3 500-1000km', '4 1000km+', '5 unknown']
+      - name: orders
+        description: "Delivered orders in this month/state/distance cell. Measure."
+        data_tests:
+          - not_null
+      - name: overdue_orders
+        description: "Orders handed to the carrier after max(shipping_limit_timestamp) for the order. Measure - the seller-side lever."
+      - name: late_orders
+        description: "Orders delivered after order_estimated_delivery_date. Measure."
+      - name: pct_overdue
+        description: "overdue_orders / orders, 0-1. Null-safe ratio, rounded to 4 dp."
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: pct_late
+        description: "late_orders / orders, 0-1, rounded to 4 dp."
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: avg_overdue_hours
+        description: "Mean hours of overshoot across this cell's overdue orders only; null where none were overdue. Measure."
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0

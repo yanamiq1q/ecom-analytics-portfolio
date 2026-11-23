@@ -26,6 +26,9 @@ Tables exported (marts only, never staging or intermediate):
     Aggregate marts (pre-built for the dashboard pages)
         customer_rfm        one row per customer_unique_id (the real person)
         seller_performance  one row per seller
+        customer_satisfaction   one row per customer_unique_id (spend vs review)
+        category_satisfaction   one row per (category, review_score)
+        delivery_risk           one row per (month, customer_state, distance_band)
 
 Relationships to draw in the Power BI model view (all single-direction, one to
 many from the dimension to the fact):
@@ -64,6 +67,7 @@ MARTS = [
     "customer_satisfaction",
     "category_satisfaction",
     "seller_performance",
+    "delivery_risk",
 ]
 
 

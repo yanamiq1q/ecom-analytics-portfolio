@@ -1,8 +1,8 @@
-name: 'ecommerce_analytics'
+name: 'ecom_analytics_portfolio'
 version: '1.0.0'
 config-version: 2
 
-profile: 'ecommerce_analytics'
+profile: 'ecom_analytics_portfolio'
 
 model-paths: ["models"]
 seed-paths: ["seeds"]
@@ -15,7 +15,7 @@ clean-targets:
   - "dbt_packages"
 
 models:
-  ecommerce_analytics:
+  ecom_analytics_portfolio:
     staging:
       +materialized: view
     intermediate:

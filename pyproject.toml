@@ -1,7 +1,7 @@
 [project]
-name = "ecommerce-analytics-dbt"
+name = "ecom-analytics-portfolio"
 version = "0.1.0"
-description = "Add your description here"
+description = "Analytics engineering portfolio: dbt + DuckDB star schema on the Olist e-commerce dataset"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

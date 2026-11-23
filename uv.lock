@@ -346,7 +346,7 @@ wheels = [
 ]
 
 [[package]]
-name = "ecommerce-analytics-dbt"
+name = "ecom-analytics-portfolio"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

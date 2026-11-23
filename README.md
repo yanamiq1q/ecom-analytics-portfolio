@@ -1,10 +1,10 @@
-# Brazilian E-Commerce Analytics (dbt + DuckDB)
+# E-Commerce Analytics Portfolio (dbt + DuckDB)
 
 ![dbt](https://img.shields.io/badge/dbt-core-FF694B?logo=dbt&logoColor=white)
 ![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)
 ![Power BI](https://img.shields.io/badge/Power%20BI-F2C811?logo=powerbi&logoColor=black)
 ![uv](https://img.shields.io/badge/uv-managed-DE5FE9?logo=python&logoColor=white)
-![tests](https://img.shields.io/badge/tests-79%20passing-3FB950)
+![tests](https://img.shields.io/badge/tests-89%20passing-3FB950)
 
 An end-to-end analytics engineering project on the public [Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) Brazilian e-commerce dataset (~100k orders across 9 related tables). It builds a tested, documented dbt project on a Kimball star schema, then uses that model to answer real business questions. Every insight is framed as finding, evidence, impact, and recommendation.
 
@@ -26,7 +26,7 @@ The emphasis is on what matters in production analytics: correct grain, surrogat
 
 ## What this demonstrates
 
-- A 3-layer dbt project: staging, intermediate, marts (22 models, 79 tests, 9 sources).
+- A 3-layer dbt project: staging, intermediate, marts (23 models, 89 tests, 9 sources).
 - A Kimball star schema: 3 dimensions and 2 fact tables at different grains, joined on surrogate keys with `relationships` tests enforcing referential integrity.
 - Generic tests (`unique`, `not_null`, `accepted_values`, `relationships`, `dbt_utils` composite and range tests) plus a singular data-quality test run at WARN severity.
 - A four-page Power BI dashboard built on the marts (Overview, Delivery Performance, Customer Satisfaction, Customer Intelligence) that presents the findings for a business audience.
@@ -57,8 +57,8 @@ Olist is a real marketplace export, so it is messy in the ways production data u
 ├── models/
 │   ├── staging/          # stg_olist__*  (views, one per source)
 │   ├── intermediate/     # int_*  (order-grain aggregations, geolocation dedup)
-│   └── marts/            # star schema (fct_*, dim_*) plus purpose-built analysis marts
-├── analyses/             # the five business analyses (compiled, read the built marts)
+│   └── marts/            # star schema (fct_*, dim_*) plus purpose-built analysis marts (incl. delivery_risk)
+├── analyses/             # the six business analyses (compiled, read the built marts)
 ├── tests/                # singular data-quality test
 ├── powerbi/              # marts-export script and the Power BI dashboard (.pbix)
 ├── docs/
@@ -76,7 +76,7 @@ Olist is a real marketplace export, so it is messy in the ways production data u
 
 ## Insights
 
-Five analyses that go beyond description. Each is framed as finding, evidence, impact, and recommendation, and reads from the built marts in `/analyses`.
+Six analyses that go beyond description. Each is framed as finding, evidence, impact, and recommendation, and reads from the built marts in `/analyses`.
 
 | # | Question | Headline finding |
 |---|----------|------------------|
@@ -85,6 +85,7 @@ Five analyses that go beyond description. Each is framed as finding, evidence, i
 | 3 | Where is revenue concentrated? | On sellers, not categories. The top 10% of sellers drive 67.6% of GMV. |
 | 4 | How is customer value distributed? | Concentrated by value, but about 97% of customers buy once, so RFM is descriptive, not a retention funnel. |
 | 5 | Does payment reconcile to order value? | 387 orders (about 0.4%) mismatch, all explained by installment interest and vouchers. |
+| 6 | Is lateness a seller problem or a transit problem? | Only 27.6% of late orders trace to a late handover; shipping 7+ days after the deadline still makes an order 11 times more likely to arrive late. |
 
 All numbers below are produced by the analyses in `/analyses`, which read the built marts.
 
@@ -100,7 +101,7 @@ All numbers below are produced by the analyses in `/analyses`, which read the bu
 
 - **Finding:** the drivers of lateness are structural and geographic.
 - **Evidence:** late rate climbs with customer-to-seller distance, from 4.5% under 100km to 10.3% beyond 1000km. It spikes occasionally (12.4% in November 2017 around Black Friday, and an unusual 19.0% in March 2018). Weight matters only for the 10kg+ tail. Category is negligible (6.3% to 8.0% across all). Sellers are spread, not concentrated: of 881 sellers with 20 or more delivered items, only 11 are chronically late.
-- **Impact and recommendation:** the most effective fix is shortening long routes (fulfilling from the nearest seller), then adding capacity and widening estimates around known peaks. Coaching the roughly 166 sellers in the 10-25% late band is worthwhile; removing sellers in bulk is not, because the always-late group is tiny.
+- **Impact and recommendation:** the most effective fix is shortening long routes (fulfilling from the nearest seller), then adding capacity and widening estimates around known peaks. Coaching the roughly 166 sellers in the 10-25% late band is worthwhile; removing sellers in bulk is not, because the always-late group is tiny. Insight 6 splits this further: only about a quarter of late orders are traceable to the seller's handover, so the distance lever is mainly a transit one.
 
 ### 3. Revenue concentrates on sellers, not categories
 
@@ -120,11 +121,20 @@ All numbers below are produced by the analyses in `/analyses`, which read the bu
 - **Evidence:** 294 are overpaid (average +R$10.44, consistent with installment interest) and 93 are underpaid (average -R$2.15, consistent with vouchers and discounts).
 - **Handling:** captured by a singular test at WARN severity. These are real payment mechanics, so the right behaviour is to surface and explain them, not to fail the build.
 
+### 6. Lateness is mostly transit, not a late handover
+
+- **Finding:** shipping after the seller's own deadline is rare, but each day of overshoot sharply raises the chance the delivery misses its promise. It is still only about a quarter of the lateness story.
+- **Evidence:** 8,563 of 96,469 delivered orders (8.9%) are handed to the carrier after `max(shipping_limit_timestamp)`; the median overshoot is 1 day and P90 is 7.8 days, so most are small slips. The late-delivery rate rises monotonically with the overshoot: 5.4% when shipped on time, 11.6% at up to 1 day, 17.5% at 1-3 days, 25.4% at 3-7 days, 59.8% at 7 days or more.
+- **Attribution:** of 6,533 late deliveries, 4,729 (72.4%) were handed over on time and went late in transit; only 1,804 (27.6%) trace to a late handover. Even an overdue order still arrives on time 78.9% of the time.
+- **Where it sits:** the overdue share is flat across distance (9.5% under 100km, 9.2% beyond 1000km), so sellers do not systematically under-ship far orders. The distance effect is transit: among on-time handovers the late rate runs 2.4% to 8.2%. The seller tail is small but nameable: of 804 sellers with 20+ delivered orders, 75 sit above 25% overdue (6,812 orders) and 232 above 10%. Across states overdue stays between 6.7% and 10.1% while late delivery runs from 4.0% (PR) to 17.4% (MA). March 2018 is the clean test: 8.4% overdue (normal) but 19.0% late, so that spike is pure transit.
+- **Impact:** seller discipline is the controllable quarter; it will not fix the other three quarters, and it caps how much a seller-coaching programme can deliver.
+- **Recommendation:** instrument handover separately from transit, alert same-day on orders that breach the shipping deadline rather than waiting for the delivery to be late, coach the named 75 sellers, and treat the MA/CE/BA long-haul lanes as a carrier problem. The `delivery_risk` mart (month × state × distance band) is built to drive exactly this view.
+
 ## Dashboard
 
 A four-page Power BI dashboard built directly on the dbt marts. It presents the findings above for a business audience and adds interactivity: a synced date filter and a revenue/orders toggle that drives several visuals at once.
 
-The transactional pages read the star schema. Two small purpose-built marts, `customer_satisfaction` and `category_satisfaction`, were added to co-locate review score with customer spend and with product category, which the star schema keeps on separate tables at different grains. A wide analysis mart is the right way to cross those grains rather than forcing bidirectional relationships in the BI layer. It is the same judgement made elsewhere in the project: a star schema for the transactional model, and purpose-built marts where a question needs a different grain.
+The transactional pages read the star schema. Three small purpose-built marts, `customer_satisfaction`, `category_satisfaction` and `delivery_risk`, were added to co-locate review score with customer spend, with product category, and with the month/state/distance shape of fulfilment, which the star schema keeps on separate tables at different grains. A wide analysis mart is the right way to cross those grains rather than forcing bidirectional relationships in the BI layer. It is the same judgement made elsewhere in the project: a star schema for the transactional model, and purpose-built marts where a question needs a different grain.
 
 The model loaded into Power BI is the dbt star schema itself: fact tables joined to their dimensions on surrogate keys, one-to-many and single-direction. The aggregate marts sit alongside as standalone sources for their own pages.
 
@@ -170,6 +180,9 @@ uv run dbt build
 # 3. generate the docs site and lineage graph
 uv run dbt docs generate
 uv run dbt docs serve
+
+# 4. optional: export the marts to /powerbi/exports for the Power BI file
+uv run python powerbi/export_marts.py
 ```
 
 `olist.duckdb` and `/data` are gitignored, so a fresh clone needs the CSVs in place before the first build.
