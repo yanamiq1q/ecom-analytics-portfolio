@@ -22,6 +22,7 @@ The emphasis is on what matters in production analytics: correct grain, surrogat
 - [Scope and deliberate exclusions](#scope-and-deliberate-exclusions)
 - [How to run](#how-to-run)
 - [What I would add for a team](#what-i-would-add-for-a-team)
+- [Data and licence](#data-and-licence)
 
 ## What this demonstrates
 
@@ -185,3 +186,9 @@ This is a static, single-author project, so it does not include production monit
 - Elementary plus alerting for production runs.
 
 Each of these is worth adding once more than one person depends on the project; on a solo project like this they would be overkill.
+
+## Data and licence
+
+The [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) is published on Kaggle by Olist under the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) licence. The raw data is not redistributed here; it is downloaded from Kaggle and kept out of version control (see [How to run](#how-to-run)). This is a non-commercial, educational project, and any output derived from the data inherits the dataset's licence.
+
+The code in this repository is released under the MIT licence (see [`LICENSE`](LICENSE)).
