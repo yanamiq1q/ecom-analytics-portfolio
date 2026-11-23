@@ -1,4 +1,4 @@
-# E-Commerce Analytics Portfolio (dbt + DuckDB)
+# 电商分析工程作品集（dbt + DuckDB）
 
 ![dbt](https://img.shields.io/badge/dbt-core-FF694B?logo=dbt&logoColor=white)
 ![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)
@@ -6,201 +6,194 @@
 ![uv](https://img.shields.io/badge/uv-managed-DE5FE9?logo=python&logoColor=white)
 ![tests](https://img.shields.io/badge/tests-89%20passing-3FB950)
 
-An end-to-end analytics engineering project on the public [Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) Brazilian e-commerce dataset (~100k orders across 9 related tables). It builds a tested, documented dbt project on a Kimball star schema, then uses that model to answer real business questions. Every insight is framed as finding, evidence, impact, and recommendation.
+基于公开的 [Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) 巴西电商数据集（约 10 万订单、9 张关联表）搭建的端到端分析工程项目。它在 Kimball 星型模型之上构建了一套经过测试、文档齐全的 dbt 项目，并以此回答真实的业务问题。每条洞察都按「发现 — 证据 — 影响 — 建议」的结构组织。
 
-The emphasis is on what matters in production analytics: correct grain, surrogate keys and referential tests, honesty about the data's limitations, and conclusions that separate correlation from causation.
+项目的侧重点是生产级分析真正重要的东西：正确的数据粒度、代理键与引用完整性测试、对数据局限的诚实交代，以及把相关性和因果性区分开的结论。
 
-## Contents
+## 目录
 
-- [What this demonstrates](#what-this-demonstrates)
-- [The dataset and its limitations](#the-dataset-and-its-limitations)
-- [Architecture](#architecture)
-- [Project structure](#project-structure)
-- [Testing](#testing)
-- [Insights](#insights)
-- [Dashboard](#dashboard)
-- [Scope and deliberate exclusions](#scope-and-deliberate-exclusions)
-- [How to run](#how-to-run)
-- [What I would add for a team](#what-i-would-add-for-a-team)
-- [Data and licence](#data-and-licence)
+- [这个项目展示了什么](#这个项目展示了什么)
+- [数据集及其局限](#数据集及其局限)
+- [架构](#架构)
+- [项目结构](#项目结构)
+- [洞察](#洞察)
+- [看板](#看板)
+- [范围与刻意排除的内容](#范围与刻意排除的内容)
+- [如何运行](#如何运行)
+- [如果团队协作我会补充什么](#如果团队协作我会补充什么)
+- [数据与许可](#数据与许可)
 
-## What this demonstrates
+## 这个项目展示了什么
 
-- A 3-layer dbt project: staging, intermediate, marts (23 models, 89 tests, 9 sources).
-- A Kimball star schema: 3 dimensions and 2 fact tables at different grains, joined on surrogate keys with `relationships` tests enforcing referential integrity.
-- Generic tests (`unique`, `not_null`, `accepted_values`, `relationships`, `dbt_utils` composite and range tests) plus a singular data-quality test run at WARN severity.
-- A four-page Power BI dashboard built on the marts (Overview, Delivery Performance, Customer Satisfaction, Customer Intelligence) that presents the findings for a business audience.
-- Deliberate scoping: documented decisions about what was *not* built, and why.
+- 三层 dbt 项目：staging、intermediate、marts（23 个模型、89 项测试、9 个数据源）。
+- Kimball 星型模型：3 个维度表和 2 张不同粒度的事实表，通过代理键关联，并用 `relationships` 测试保证引用完整性。
+- 通用测试（`unique`、`not_null`、`accepted_values`、`relationships`、`dbt_utils` 复合键与范围测试），外加一个以 WARN 级别运行的单值数据质量测试。
+- 基于 marts 构建的四页 Power BI 看板（概览、配送表现、客户满意度、客户智能），面向业务受众呈现发现。
+- 刻意的范围控制：把「没有做什么、为什么」写进文档，而不是默认全做。
 
-## The dataset and its limitations
+## 数据集及其局限
 
-Olist is a real marketplace export, so it is messy in the ways production data usually is. Three limitations are handled explicitly rather than ignored:
+Olist 是真实的市场导出数据，因此它带着生产数据常见的杂乱。有三点局限是被显式处理、而非忽略的：
 
-1. **No true cost or margin.** The data has `price`, `freight_value`, and `payment_value`, but no cost of goods. No profit or margin is computed; all revenue figures are gross merchandise value (item price).
-2. **`customer_id` is per-order, not per-person.** Olist issues a new `customer_id` for every order. The real person is `customer_unique_id`. All person-level analysis (RFM, repeat rate) uses `customer_unique_id`; `customer_id` is treated as a per-order key only.
-3. **Low repeat rate.** Only about 3% of customers order more than once, which bounds what retention and frequency analysis can claim. This is stated wherever it matters and drives a deliberate modelling decision (see [Scope and deliberate exclusions](#scope-and-deliberate-exclusions)).
+1. **没有真实成本或毛利。** 数据里有 `price`、`freight_value` 和 `payment_value`，但没有商品成本。因此不计算利润或毛利；所有收入数字均为商品交易总额（GMV，即商品价格）。
+2. **`customer_id` 是订单级、不是人级。** Olist 对每笔订单都会生成新的 `customer_id`，真正的自然人是 `customer_unique_id`。所有人级分析（RFM、复购率）都使用 `customer_unique_id`，`customer_id` 仅作为订单键。
+3. **复购率低。** 只有约 3% 的客户下单超过一次，这限制了留存和频次分析能得出的结论。在所有相关处都已说明这一点，并据此做出了刻意的建模决策（见[范围与刻意排除的内容](#范围与刻意排除的内容)）。
 
-## Architecture
+## 架构
 
-![dbt lineage graph: green source tables, then stg_olist__*, the int_* aggregations, the star schema, and the analytical marts and analyses on the right](docs/images/dag.png)
+![dbt 血缘图：绿色源表 → stg_olist__* → int_* 聚合 → 星型模型 → 右侧的分析 mart 与分析](docs/images/dag.png)
 
-*Full project lineage rendered by `dbt docs`: green source tables, then `stg_olist__*`, the `int_*` aggregations, the star schema, and the analytical marts and analyses on the right.*
+*由 `dbt docs` 渲染的完整项目血缘：绿色源表，然后是 `stg_olist__*`、`int_*` 聚合、星型模型，最右侧是分析 mart 与分析。*
 
-- **Staging** materialises as views, one model per source, with empirical type handling (for example, dates cast to `DATE` only where no row carries a time component).
-- **Intermediate** holds order-grain aggregations of items, payments, and reviews, plus a geolocation model that deduplicates Brazil's zip-prefix coordinates to a single centroid per prefix.
-- **Marts** materialise as tables. The star schema uses surrogate keys from `dbt_utils.generate_surrogate_key`; facts reference dimensions through those keys, with `relationships` tests verifying every key resolves. `fct_order_items` also carries a customer-to-seller great-circle (haversine) distance built from the deduplicated geolocation.
+- **Staging** 以视图物化，每个源表一个模型，采用经验式类型处理（例如，只有在没有任何行带时间分量时，才把日期转为 `DATE`）。
+- **Intermediate** 存放订单粒度的商品、支付、评论聚合，以及一个地理模型——把巴西邮编前缀坐标去重为每个前缀的单一质心。
+- **Marts** 以表物化。星型模型使用 `dbt_utils.generate_surrogate_key` 生成的代理键；事实表通过这些键引用维度表，`relationships` 测试验证每个键都能解析。`fct_order_items` 还携带了基于去重地理信息计算的客户到卖家大圆（haversine）距离。
 
-## Project structure
+## 项目结构
 
 ```text
 .
 ├── models/
-│   ├── staging/          # stg_olist__*  (views, one per source)
-│   ├── intermediate/     # int_*  (order-grain aggregations, geolocation dedup)
-│   └── marts/            # star schema (fct_*, dim_*) plus purpose-built analysis marts (incl. delivery_risk)
-├── analyses/             # the six business analyses (compiled, read the built marts)
-├── tests/                # singular data-quality test
-├── powerbi/              # marts-export script and the Power BI dashboard (.pbix)
+│   ├── staging/          # stg_olist__*  （视图，每个源表一个）
+│   ├── intermediate/     # int_*  （订单粒度聚合、地理去重）
+│   └── marts/            # 星型模型（fct_*, dim_*）外加专用分析 mart（含 delivery_risk）
+├── analyses/             # 六条业务分析（编译后读取已构建的 marts）
+├── tests/                # 单值数据质量测试
+├── powerbi/              # mart 导出脚本与 Power BI 看板（.pbix）
 ├── docs/
-│   └── images/           # DAG, Power BI model view, dashboard screenshots
+│   └── images/           # DAG、Power BI 模型视图、看板截图
 ├── dbt_project.yml
 ├── packages.yml
 └── README.md
 ```
 
-## Testing
+## 洞察
 
-- **Generic tests** on keys and categoricals: `unique` and `not_null` on every surrogate key, `accepted_values` on statuses and scores, `relationships` on all fact-to-dimension keys, and `dbt_utils.unique_combination_of_columns` for composite grains.
-- **A singular data-quality test** (`tests/assert_payment_matches_order_value.sql`) reconciles each order's payment against item price plus freight. It runs at **WARN** severity because the mismatches are legitimate Brazilian payment mechanics (installment interest and vouchers), not ingestion errors. It surfaces them rather than failing the build.
-- Dimensions are SCD Type 1 (overwrite). In production these would be snapshotted for SCD Type 2 history.
+六条超越描述层面的分析。每条都按「发现 — 证据 — 影响 — 建议」组织，并从 `/analyses` 中读取已构建的 marts。
 
-## Insights
+| # | 问题 | 核心发现 |
+|---|------|----------|
+| 1 | 延迟交付会影响满意度吗？ | 错过承诺日期会让评分下降约 2.5 星，且该效应在控制品类、重量和距离后依然成立。 |
+| 2 | 是什么导致迟到？ | 是距离，而非商品或卖家质量。迟到率从短途到长途翻了一倍多。 |
+| 3 | 收入集中在哪里？ | 在卖家而非品类。头部 10% 的卖家贡献了 67.6% 的 GMV。 |
+| 4 | 客户价值如何分布？ | 价值高度集中，但约 97% 的客户只买一次，因此 RFM 是描述性的，不是留存漏斗。 |
+| 5 | 支付能和订单金额对上吗？ | 387 单（约 0.4%）对不上，全部可用分期利息和代金券解释。 |
+| 6 | 迟到是卖家问题还是运输问题？ | 只有 27.6% 的迟到订单可归因于超期交运；但超期 7 天以上仍会让订单迟到概率变为 11 倍。 |
 
-Six analyses that go beyond description. Each is framed as finding, evidence, impact, and recommendation, and reads from the built marts in `/analyses`.
+以下所有数字均由 `/analyses` 中的分析产出，它们读取已构建的 marts。
 
-| # | Question | Headline finding |
-|---|----------|------------------|
-| 1 | Does late delivery hurt satisfaction? | Missing the promised date drops review score by about 2.5 stars, and the effect survives category, weight, and distance controls. |
-| 2 | What drives lateness? | Distance, not product or seller quality. Late rate more than doubles from short to long routes. |
-| 3 | Where is revenue concentrated? | On sellers, not categories. The top 10% of sellers drive 67.6% of GMV. |
-| 4 | How is customer value distributed? | Concentrated by value, but about 97% of customers buy once, so RFM is descriptive, not a retention funnel. |
-| 5 | Does payment reconcile to order value? | 387 orders (about 0.4%) mismatch, all explained by installment interest and vouchers. |
-| 6 | Is lateness a seller problem or a transit problem? | Only 27.6% of late orders trace to a late handover; shipping 7+ days after the deadline still makes an order 11 times more likely to arrive late. |
+### 1. 延迟交付与更低的评分相关
 
-All numbers below are produced by the analyses in `/analyses`, which read the built marts.
+- **发现：** 错过承诺交付日期与评分大幅下降相关，约 2.5 星。
+- **证据：** 按「交付相对预估日期」分组的平均评分：提前 4.29、准时 4.04、迟到 1–5 天 2.99、迟到 6–15 天 1.74、迟到 15 天以上 1.73。下降平稳，且在「准时到略微迟到」的边界处最陡。提前送达的评分高于刚好准时送达。
+- **稳健性：** 同样的下降在商品品类内、重量带内、距离带内都成立。距离本身影响很小（整个区间约 0.1 星），但迟到的影响大约是它的二十倍，且在三类控制下依然存在。相关性是站得住的；不主张因果性（卖家和价格未控制）。
+- **影响：** 迟到订单只占约 6.7% 的量，却产生了大部分拉低平台评分的 1 星和 2 星评价。
+- **建议：** 优化目标是「赶上承诺日期」，而非纯粹的速度。大多数订单已经提前送达，因此重点是那一小部分迟到订单：给出更现实的预估，并标记可能迟到的运单，尤其是长途运单。
 
-### 1. Late delivery is associated with lower review scores
+### 2. 迟到由距离驱动，而非商品或卖家质量
 
-- **Finding:** missing the promised delivery date is associated with a sharp drop in review score, roughly 2.5 stars.
-- **Evidence:** average review by delivery-vs-estimate bucket: early 4.29, on-time 4.04, 1-5 days late 2.99, 6-15 days late 1.74, 15+ days late 1.73. The drop is steady and sharpest at the on-time to slightly-late boundary. Arriving early beats arriving exactly on time.
-- **Robustness:** the same drop holds within product categories, within weight bands, and within distance bands. Distance has a small effect of its own (about 0.1 star across the range), but lateness is roughly twenty times larger and survives all three controls. Association is defensible; causation is not claimed (seller and price are uncontrolled).
-- **Impact:** late orders are only about 6.7% of volume but generate most of the 1 and 2 star reviews dragging the platform rating.
-- **Recommendation:** optimise for hitting the promised date, not raw speed. Most orders already arrive early, so the focus is the small share of late orders: realistic estimates and flagging shipments likely to be late, especially long-distance ones.
+- **发现：** 迟到的驱动因素是结构性和地理性的。
+- **证据：** 迟到率随客户到卖家的距离攀升，从 100km 以内的 4.5% 到 1000km 以外的 10.3%。偶尔会出现尖峰（2017 年 11 月黑色星期五前后 12.4%，以及 2018 年 3 月异常的 19.0%）。重量只在 10kg 以上的尾部才有影响。品类可忽略（全部在 6.3% 到 8.0% 之间）。卖家是分散的，并非集中：在有 20 单以上已送达商品的 881 个卖家中，只有 11 个长期迟到。
+- **影响与建议：** 最有效的修复是缩短长途线路（从最近的卖家发货），然后在已知高峰期增加运力并放宽预估。对迟到率处于 10–25% 区间的约 166 个卖家进行辅导是值得的；但批量清退卖家不是好办法，因为「总是迟到」的群体很小。洞察 6 进一步拆分了这一点：只有约四分之一的迟到订单可归因于卖家的交运环节，所以距离这个杠杆主要作用在运输上。
 
-### 2. Lateness is driven by distance, not product or seller quality
+### 3. 收入集中在卖家，而非品类
 
-- **Finding:** the drivers of lateness are structural and geographic.
-- **Evidence:** late rate climbs with customer-to-seller distance, from 4.5% under 100km to 10.3% beyond 1000km. It spikes occasionally (12.4% in November 2017 around Black Friday, and an unusual 19.0% in March 2018). Weight matters only for the 10kg+ tail. Category is negligible (6.3% to 8.0% across all). Sellers are spread, not concentrated: of 881 sellers with 20 or more delivered items, only 11 are chronically late.
-- **Impact and recommendation:** the most effective fix is shortening long routes (fulfilling from the nearest seller), then adding capacity and widening estimates around known peaks. Coaching the roughly 166 sellers in the 10-25% late band is worthwhile; removing sellers in bulk is not, because the always-late group is tiny. Insight 6 splits this further: only about a quarter of late orders are traceable to the seller's handover, so the distance lever is mainly a transit one.
+- **发现：** 收入风险是供给侧（卖家）的故事，而非需求侧（品类）的故事。
+- **证据：** 头部 10% 的卖家（3,095 中的 310 个）贡献了 67.6% 的 GMV，头部 20% 达到 82.7%，而底部一半卖家合计仅贡献约 2%。收入在品类间分散：没有任何单一品类超过收入的 9.3%，前 5 个品类约占 40%，需要约 20 个（共 72 个）品类才能达到 80%。
+- **建议：** 把头部几百个卖家当作重点客户维护，因为留住他们就守住了三分之二的 GMV。品类策略可以保持宽泛，因为没有单一品类占主导。卖家质量不随规模变化，因此没有理由限制大卖家。
 
-### 3. Revenue concentrates on sellers, not categories
+### 4. 客户价值集中，但客群以一次性买家为主
 
-- **Finding:** revenue risk is a supply-side (seller) story, not a demand-side (category) one.
-- **Evidence:** the top 10% of sellers (310 of 3,095) drive 67.6% of GMV, the top 20% reach 82.7%, and the bottom half of sellers contribute about 2% combined. Revenue is spread across categories: no single category exceeds 9.3% of revenue, the top 5 are about 40%, and it takes roughly 20 of the 72 categories to reach 80%.
-- **Recommendation:** treat the top few hundred sellers as key accounts, since retention there protects two-thirds of GMV. Category strategy can stay broad because no single category dominates. Seller quality does not vary with size, so there is no reason to limit larger sellers.
+- **发现：** RFM 分段让价值集中，但数据集以单次购买为主。
+- **证据：** 约 97% 的客户只下过一次单，因此「频次」维度几乎没有信号，由「最近购买」和「金额」承担主要区分作用（也因此频次用 `CASE` 分层，而非 `NTILE`）。重要价值客户（Champions）占客户的 16.4%，但占收入的 30.2%；有流失风险客户（At-Risk）占客户的 15.5%，但占收入的 29.2%。
+- **建议：** 这些分段是描述性的价值层级，可用于排定营销支出的优先级，而不是一个实时的留存漏斗。「有流失风险」的收入数字是有限的，因为大多数一次性买家不会再回来。
 
-### 4. Customer value is concentrated, but the base is one-time buyers
+### 5. 数据质量：支付对账
 
-- **Finding:** RFM segments concentrate value, but the dataset is dominated by single purchases.
-- **Evidence:** about 97% of customers order exactly once, so the Frequency dimension carries little signal and Recency and Monetary do the work (Frequency is tiered with `CASE`, not `NTILE`, for that reason). Champions are 16.4% of customers but 30.2% of revenue; At-Risk are 15.5% of customers but 29.2% of revenue.
-- **Recommendation:** the segments are descriptive value tiers, useful for prioritising marketing spend, not a live retention funnel. The At-Risk revenue figure is limited because most one-time buyers will not return.
+- **发现：** 387 单（约 0.4%）的支付总额不等于商品价格加运费。
+- **证据：** 294 单多付（平均 +R$10.44，与分期利息一致），93 单少付（平均 −R$2.15，与代金券和折扣一致）。
+- **处理：** 由一个以 WARN 级别运行的单值测试捕获。这些是真实的支付机制，因此正确的做法是把它们暴露并解释，而不是让构建失败。
 
-### 5. Data quality: payment reconciliation
+### 6. 迟到主要是运输问题，而非超期交运
 
-- **Finding:** 387 orders (about 0.4%) have a payment total that does not equal item price plus freight.
-- **Evidence:** 294 are overpaid (average +R$10.44, consistent with installment interest) and 93 are underpaid (average -R$2.15, consistent with vouchers and discounts).
-- **Handling:** captured by a singular test at WARN severity. These are real payment mechanics, so the right behaviour is to surface and explain them, not to fail the build.
+- **发现：** 在卖家自己的截止日期之后发货很少见，但每多超期一天，配送错过承诺日期的概率都会急剧上升。不过这仍只占迟到故事的约四分之一。
+- **证据：** 96,469 个已送达订单中，有 8,563 个（8.9%）是在 `max(shipping_limit_timestamp)` 之后才交给承运商的；超期中位数为 1 天、P90 为 7.8 天，所以大多数只是小幅拖延。迟到率随超期幅度单调上升：按时交运 5.4%、超期 1 天以内 11.6%、1–3 天 17.5%、3–7 天 25.4%、7 天及以上 59.8%。
+- **归因：** 在 6,533 个迟到配送中，4,729 个（72.4%）是按时交运、在运输中变迟的；只有 1,804 个（27.6%）可归因于超期交运。即使是超期订单，仍有 78.9% 的概率准时送达。
+- **所处位置：** 超期比例在各距离带上基本持平（100km 以内 9.5%，1000km 以外 9.2%），说明卖家并不会系统性地拖延远距订单。距离效应体现在运输上：在按时交运的订单中，迟到率从 2.4% 到 8.2%。卖家尾部很小但可点名：在有 20 单以上已送达订单的 804 个卖家中，75 个超期率超过 25%（6,812 单），232 个超过 10%。各州的超期率保持在 6.7% 到 10.1% 之间，而迟到率从 4.0%（PR）到 17.4%（MA）不等。2018 年 3 月是最干净的检验：超期率 8.4%（正常）但迟到率 19.0%，因此那次尖峰纯粹是运输问题。
+- **影响：** 卖家纪律是可控的那四分之一；它修不好另外的四分之三，也限定了卖家辅导项目能带来的上限。
+- **建议：** 把交运环节和运输环节分开度量，对突破发货截止日期的订单当天就告警（而不是等配送迟到了才发现），辅导那 75 个已点名的卖家，并把 MA/CE/BA 的长途线路当作承运商问题来处理。`delivery_risk` mart（月 × 州 × 距离带）正是为驱动这个视图而构建的。
 
-### 6. Lateness is mostly transit, not a late handover
+## 看板
 
-- **Finding:** shipping after the seller's own deadline is rare, but each day of overshoot sharply raises the chance the delivery misses its promise. It is still only about a quarter of the lateness story.
-- **Evidence:** 8,563 of 96,469 delivered orders (8.9%) are handed to the carrier after `max(shipping_limit_timestamp)`; the median overshoot is 1 day and P90 is 7.8 days, so most are small slips. The late-delivery rate rises monotonically with the overshoot: 5.4% when shipped on time, 11.6% at up to 1 day, 17.5% at 1-3 days, 25.4% at 3-7 days, 59.8% at 7 days or more.
-- **Attribution:** of 6,533 late deliveries, 4,729 (72.4%) were handed over on time and went late in transit; only 1,804 (27.6%) trace to a late handover. Even an overdue order still arrives on time 78.9% of the time.
-- **Where it sits:** the overdue share is flat across distance (9.5% under 100km, 9.2% beyond 1000km), so sellers do not systematically under-ship far orders. The distance effect is transit: among on-time handovers the late rate runs 2.4% to 8.2%. The seller tail is small but nameable: of 804 sellers with 20+ delivered orders, 75 sit above 25% overdue (6,812 orders) and 232 above 10%. Across states overdue stays between 6.7% and 10.1% while late delivery runs from 4.0% (PR) to 17.4% (MA). March 2018 is the clean test: 8.4% overdue (normal) but 19.0% late, so that spike is pure transit.
-- **Impact:** seller discipline is the controllable quarter; it will not fix the other three quarters, and it caps how much a seller-coaching programme can deliver.
-- **Recommendation:** instrument handover separately from transit, alert same-day on orders that breach the shipping deadline rather than waiting for the delivery to be late, coach the named 75 sellers, and treat the MA/CE/BA long-haul lanes as a carrier problem. The `delivery_risk` mart (month × state × distance band) is built to drive exactly this view.
+一个直接构建在 dbt marts 之上的四页 Power BI 看板。它面向业务受众呈现上述发现，并增加了交互能力：同步的日期筛选器，以及一个可同时驱动多个图表的「收入/订单量」切换。
 
-## Dashboard
+事务型页面读取星型模型。为了把评分与客户消费、与商品品类、与履约的「月/州/距离」形态放在同一张表里，新增了三个小型专用 mart：`customer_satisfaction`、`category_satisfaction` 和 `delivery_risk`——因为星型模型把这些信息分散在不同粒度的表上。用一张宽分析表来跨粒度聚合，比在 BI 层强行建立双向关系更合理。这与项目其他地方的判断一致：事务模型用星型模型，而需要不同粒度的问题用专用 mart。
 
-A four-page Power BI dashboard built directly on the dbt marts. It presents the findings above for a business audience and adds interactivity: a synced date filter and a revenue/orders toggle that drives several visuals at once.
+加载到 Power BI 的模型就是 dbt 星型模型本身：事实表通过代理键关联到其维度表，一对多、单向。聚合 mart 作为独立数据源，供各自的页面使用。
 
-The transactional pages read the star schema. Three small purpose-built marts, `customer_satisfaction`, `category_satisfaction` and `delivery_risk`, were added to co-locate review score with customer spend, with product category, and with the month/state/distance shape of fulfilment, which the star schema keeps on separate tables at different grains. A wide analysis mart is the right way to cross those grains rather than forcing bidirectional relationships in the BI layer. It is the same judgement made elsewhere in the project: a star schema for the transactional model, and purpose-built marts where a question needs a different grain.
+![Power BI 星型模型视图](docs/images/model_view.png)
 
-The model loaded into Power BI is the dbt star schema itself: fact tables joined to their dimensions on surrogate keys, one-to-many and single-direction. The aggregate marts sit alongside as standalone sources for their own pages.
+**概览。** 头部 KPI、与平均评分并列展示的收入趋势，以及带「收入/订单量」切换的头部卖家和品类。
 
-![Power BI model view of the star schema](docs/images/model_view.png)
+![Power BI 概览页](docs/images/olist_pbi_overview.png?v=2)
 
-**Overview.** Headline KPIs, a revenue trend shown alongside average review score, and top sellers and categories with a revenue/orders toggle.
+**配送表现。** 准时率与迟到率、配送状态分布，以及按时间和按州的迟到率。洞察 2 背后的运营视图。
 
-![Power BI overview page](docs/images/olist_pbi_overview.png?v=2)
+![Power BI 配送表现页](docs/images/olist_pbi_delivery_performance.png)
 
-**Delivery Performance.** On-time and late rates, the delivery-status split, and late rate over time and by state. The operational view behind insight 2.
+**客户满意度。** 按交付结果的评分（洞察 1 的级联）、按商品品类的评分构成，以及一张值得挽留的高消费低满意度客户表。
 
-![Power BI delivery performance page](docs/images/olist_pbi_delivery_performance.png)
+![Power BI 客户满意度页](docs/images/olist_pbi_customer_satisfaction.png)
 
-**Customer Satisfaction.** Review score by delivery outcome (the cascade from insight 1), the review-score mix by product category, and a table of high-spending, low-satisfaction customers worth retaining.
+**客户智能。** 洞察 4 的 RFM 分段：收入按分段来自哪里，以及一张「最近购买 vs 消费金额」的客户全景图。
 
-![Power BI customer satisfaction page](docs/images/olist_pbi_customer_satisfaction.png)
+![Power BI 客户智能页](docs/images/olist_pbi_customer_intelligence.png)
 
-**Customer Intelligence.** The RFM segmentation from insight 4: where revenue comes from by segment, and a recency-versus-spend customer landscape.
+## 范围与刻意排除的内容
 
-![Power BI customer intelligence page](docs/images/olist_pbi_customer_intelligence.png)
+有两件事被刻意排除在外，而排除的理由也是工作的一部分：
 
-## Scope and deliberate exclusions
+- **没有流失、生命周期价值或留存模型。** 约 3% 的复购率支撑不了可靠的流失或 CLV 模型：约 97% 的客户只有一笔订单，没有可学习的复购行为信号。这里的 RFM 是描述性分群，不是留存漏斗。
+- **没有利润或毛利。** 源数据中没有商品成本，任何毛利数字都将是编造的。所有收入均为商品交易总额（GMV），并已如实标注。
 
-Two things were deliberately not built, and the reasoning is part of the work:
+## 如何运行
 
-- **No churn, lifetime-value, or retention model.** A roughly 3% repeat rate cannot support a reliable churn or CLV model: with about 97% of customers having a single order, there is no repeat-behaviour signal to learn from. RFM here is descriptive segmentation, not a retention funnel.
-- **No profit or margin.** With no cost of goods in the source, any margin figure would be invented. All revenue is gross merchandise value, stated as such.
+数仓是 DuckDB，因此整个项目无需云账号即可在本地构建。
 
-## How to run
-
-The warehouse is DuckDB, so the whole project builds locally with no cloud account.
-
-**Prerequisites:** [uv](https://docs.astral.sh/uv/), and the Olist CSVs in `/data` (gitignored, Kaggle slug `olistbr/brazilian-ecommerce`).
+**前置条件：** [uv](https://docs.astral.sh/uv/)，以及放在 `/data` 下的 Olist CSV（已被 gitignore，Kaggle slug 为 `olistbr/brazilian-ecommerce`）。
 
 ```bash
-# 1. install dependencies and dbt packages
+# 1. 安装依赖与 dbt 包
 uv sync
 uv run dbt deps
 
-# 2. build and test (runs every model, then every test)
+# 2. 构建并测试（依次运行每个模型，然后运行每项测试）
 uv run dbt build
 
-# 3. generate the docs site and lineage graph
+# 3. 生成文档站点与血缘图
 uv run dbt docs generate
 uv run dbt docs serve
 
-# 4. optional: export the marts to /powerbi/exports for the Power BI file
+# 4. 可选：把 marts 导出到 /powerbi/exports 供 Power BI 使用
 uv run python powerbi/export_marts.py
 ```
 
-`olist.duckdb` and `/data` are gitignored, so a fresh clone needs the CSVs in place before the first build.
+`olist.duckdb` 和 `/data` 都被 gitignore，因此全新 clone 后，首次构建前需要先把 CSV 放到位。
 
-## What I would add for a team
+## 如果团队协作我会补充什么
 
-This is a static, single-author project, so it does not include production monitoring. On a team it would also have:
+这是一个静态的、单人项目，因此没有包含生产监控。如果是团队项目，还会有：
 
-- `sqlfluff` and pre-commit hooks for style and lint on every commit.
-- `dbt-checkpoint` and `dbt-project-evaluator` to enforce documentation and best-practice coverage.
-- A CI workflow running `dbt build` and lint on every pull request.
-- Model `contracts` on the public marts.
-- Elementary plus alerting for production runs.
+- `sqlfluff` 和 pre-commit 钩子，在每次提交时做风格与 lint 检查。
+- `dbt-checkpoint` 和 `dbt-project-evaluator`，用于约束文档覆盖率和最佳实践。
+- 一个在每个 PR 上运行 `dbt build` 和 lint 的 CI 工作流。
+- 在公开 mart 上加模型 `contracts`。
+- Elementary 加上对生产运行的告警。
 
-Each of these is worth adding once more than one person depends on the project; on a solo project like this they would be overkill.
+这些在有多人依赖这个项目时都值得加；在单人项目里加上反而是过度设计。
 
-## Data and licence
+## 数据与许可
 
-The [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) is published on Kaggle by Olist under the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) licence. The raw data is not redistributed here; it is downloaded from Kaggle and kept out of version control (see [How to run](#how-to-run)). This is a non-commercial, educational project, and any output derived from the data inherits the dataset's licence.
+[Olist 巴西电商公开数据集](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)由 Olist 在 Kaggle 上以 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) 许可发布。原始数据不在此重新分发；它从 Kaggle 下载并排除在版本控制之外（见[如何运行](#如何运行)）。这是一个非商业的教育项目，任何由数据衍生的产出都继承该数据集的许可。
 
-The code in this repository is released under the MIT licence (see [`LICENSE`](LICENSE)).
+本仓库的代码以 MIT 许可发布（见 [`LICENSE`](LICENSE)）。
